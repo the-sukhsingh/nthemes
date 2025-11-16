@@ -28,7 +28,7 @@ npx nthemes
 1. **Run the CLI in your Next.js project:**
 
 ```bash
-nthemes
+npx nthemes
 ```
 
 2. **Follow the prompts:**
