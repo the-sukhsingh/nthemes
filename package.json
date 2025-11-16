@@ -1,0 +1,43 @@
+{
+  "name": "nthemes",
+  "version": "1.0.0",
+  "description": "A CLI utility to scaffold next-themes setup in Next.js projects with theme provider and toggle components",
+  "main": "src/index.js",
+  "bin": {
+    "nthemes": "bin/cli.js"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "node bin/cli.js"
+  },
+  "keywords": [
+    "next-themes",
+    "next.js",
+    "theme",
+    "dark-mode",
+    "cli",
+    "scaffold",
+    "shadcn",
+    "generator",
+    "component-scaffold"
+  ],
+  "author": "Sukhjit Singh",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/the-sukhsingh/nthemes"
+  },
+  "bugs": {
+    "url": "https://github.com/the-sukhsingh/nthemes/issues"
+  },
+  "homepage": "https://github.com/the-sukhsingh/nthemes#readme",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "fs-extra": "^11.1.1",
+    "inquirer": "^8.2.5"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
