@@ -1,10 +1,10 @@
 {
   "name": "nthemes",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A CLI utility to scaffold next-themes setup in Next.js projects with theme provider and toggle components",
   "main": "src/index.js",
   "bin": {
-    "nthemes": "node bin/cli.js"
+    "nthemes": "bin/cli.js"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
