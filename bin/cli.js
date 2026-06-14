@@ -6,9 +6,94 @@ const inquirer = require('inquirer');
 const chalk = require('chalk');
 const { generateThemeFiles } = require('../src/generator');
 
+function detectTypeScript(cwd) {
+  const tsconfigExists = fs.existsSync(path.join(cwd, 'tsconfig.json'));
+  if (tsconfigExists) return true;
+
+  try {
+    const pkgPath = path.join(cwd, 'package.json');
+    if (fs.existsSync(pkgPath)) {
+      const pkg = fs.readJsonSync(pkgPath);
+      const allDeps = { ...pkg.dependencies, ...pkg.devDependencies };
+      if (allDeps.typescript) return true;
+    }
+  } catch (e) {
+    // Ignore read errors
+  }
+  return false;
+}
+
+function detectSrcDirectory(cwd) {
+  return fs.existsSync(path.join(cwd, 'src'));
+}
+
+function detectPackageManager(cwd) {
+  if (fs.existsSync(path.join(cwd, 'pnpm-lock.yaml'))) {
+    return 'pnpm';
+  }
+  if (fs.existsSync(path.join(cwd, 'yarn.lock'))) {
+    return 'yarn';
+  }
+  if (fs.existsSync(path.join(cwd, 'bun.lockb')) || fs.existsSync(path.join(cwd, 'bun.lock'))) {
+    return 'bun';
+  }
+  return 'npm';
+}
+
+function detectLayoutFile(cwd) {
+  const possiblePaths = [
+    'src/app/layout.tsx',
+    'src/app/layout.jsx',
+    'src/app/layout.js',
+    'app/layout.tsx',
+    'app/layout.jsx',
+    'app/layout.js',
+    'src/pages/_app.tsx',
+    'src/pages/_app.jsx',
+    'src/pages/_app.js',
+    'pages/_app.tsx',
+    'pages/_app.jsx',
+    'pages/_app.js',
+  ];
+  for (const p of possiblePaths) {
+    if (fs.existsSync(path.join(cwd, p))) {
+      return p;
+    }
+  }
+  return null;
+}
+
+function getInstallCommand(packageManager, dependencies) {
+  const depString = dependencies.join(' ');
+  switch (packageManager) {
+    case 'pnpm':
+      return `pnpm add ${depString}`;
+    case 'yarn':
+      return `yarn add ${depString}`;
+    case 'bun':
+      return `bun add ${depString}`;
+    default:
+      return `npm install ${depString}`;
+  }
+}
+
 async function main() {
+  const cwd = process.cwd();
+  
   console.log(chalk.blue.bold('\n✨ Next Theme OneShot CLI\n'));
   console.log(chalk.gray('Setting up next-themes in your Next.js project...\n'));
+
+  // Run auto-detections
+  const isTypeScript = detectTypeScript(cwd);
+  const hasSrcDir = detectSrcDirectory(cwd);
+  const packageManager = detectPackageManager(cwd);
+
+  if (isTypeScript) {
+    console.log(chalk.gray(`🔍 Detected TypeScript project.`));
+  } else {
+    console.log(chalk.gray(`🔍 Detected JavaScript project.`));
+  }
+  console.log(chalk.gray(`📦 Detected package manager: ${chalk.bold(packageManager)}\n`));
 
   try {
     // Prompt user for configuration
@@ -17,7 +102,7 @@ async function main() {
         type: 'input',
         name: 'componentsPath',
         message: 'Where should the components be created? (relative path)',
-        default: 'src/components',
+        default: hasSrcDir ? 'src/components/theme' : 'components/theme',
         validate: (input) => {
           if (!input || input.trim() === '') {
             return 'Path cannot be empty';
@@ -29,14 +114,14 @@ async function main() {
         type: 'confirm',
         name: 'useTypeScript',
         message: 'Use TypeScript?',
-        default: true,
+        default: isTypeScript,
       },
       {
         type: 'checkbox',
         name: 'components',
         message: 'Which components would you like to create?',
-        choices: ['ThemeProvider', 'ThemeToggle'],
-        default: ['ThemeProvider', 'ThemeToggle'],
+        choices: ['ThemeProvider', 'ThemeToggle', 'Provider'],
+        default: ['ThemeProvider', 'ThemeToggle', 'Provider'],
         validate: (input) => {
           if (input.length === 0) {
             return 'Please select at least one component';
@@ -47,22 +132,30 @@ async function main() {
     ]);
 
     // Generate files
-    const cwd = process.cwd();
     const componentsPath = path.join(cwd, answers.componentsPath);
     
     console.log(chalk.gray('\nGenerating files...\n'));
 
     await generateThemeFiles(componentsPath, answers.useTypeScript, answers.components);
     
-    // Install next-themes and Lucide-react
-    console.log(chalk.gray('Installing dependencies...\n'));
+    // Install next-themes dependency
+    console.log(chalk.gray('\nInstalling dependencies...\n'));
+    const installCmd = getInstallCommand(packageManager, ['next-themes']);
+    
+    console.log(chalk.gray(`Running: ${chalk.cyan(installCmd)}`));
     const { execSync } = require('child_process');
-    execSync('npm install next-themes lucide-react', { stdio: 'inherit' });
+    execSync(installCmd, { stdio: 'inherit' });
 
-    console.log(chalk.green.bold('✅ Success! Theme files created.\n'));
-    console.log(chalk.yellow('📝 Next steps:\n'))
-    console.log(chalk.white(`1. Wrap your app with ThemeProvider in ${chalk.cyan('layout.tsx')}.`));
-    console.log(chalk.white(`2. Use ThemeToggle component wherever you need theme switching\n`));
+    // Detect layout / app wrapper page
+    const layoutFile = detectLayoutFile(cwd);
+    const layoutHint = layoutFile 
+      ? chalk.cyan(layoutFile) 
+      : chalk.cyan(answers.useTypeScript ? 'layout.tsx / _app.tsx' : 'layout.js / _app.js');
+
+    console.log(chalk.green.bold('\n✅ Success! Theme files created.\n'));
+    console.log(chalk.yellow('📝 Next steps:\n'));
+    console.log(chalk.white(`1. Wrap your app with the ${chalk.cyan('Provider')} in ${layoutHint}.`));
+    console.log(chalk.white(`2. Use the ${chalk.cyan('ModeToggle')} component (exported from ThemeToggle) wherever you need theme switching.\n`));
 
     console.log(chalk.blue.bold('Happy Theming! 🚀\n'));
     
