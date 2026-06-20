@@ -2,8 +2,9 @@ const fs = require('fs-extra');
 const path = require('path');
 const chalk = require('chalk');
 const { getThemeProviderTemplate, getThemeToggleTemplate, getProviderTemplate } = require('./templates');
+const { transitions, expoTimingFunctions } = require('./transitions');
 
-async function generateThemeFiles(componentsPath, useTypeScript, components) {
+async function generateThemeFiles(componentsPath, useTypeScript, components, transitionStyle, globalsCssPath) {
   // Ensure the components directory exists
   await fs.ensureDir(componentsPath);
 
@@ -23,9 +24,25 @@ async function generateThemeFiles(componentsPath, useTypeScript, components) {
     // Generate ThemeToggle
     if (components.includes('ThemeToggle')) {
       const themeTogglePath = path.join(componentsPath, `ThemeToggle.${ext}`);
-      const themeToggleContent = getThemeToggleTemplate(useTypeScript);
+      const themeToggleContent = getThemeToggleTemplate(useTypeScript, transitionStyle);
       await fs.writeFile(themeTogglePath, themeToggleContent);
       createdFiles.push(`✓ ${chalk.cyan(path.relative(cwd, themeTogglePath))}`);
+
+      // Handle CSS Generation
+      if (transitionStyle && transitions[transitionStyle]) {
+        if (globalsCssPath) {
+          const cssBlock = `\n/* nthemes: theme toggle transitions */\n${expoTimingFunctions}\n\n${transitions[transitionStyle].css}\n`;
+          const cssFileAbsPath = path.isAbsolute(globalsCssPath) ? globalsCssPath : path.join(cwd, globalsCssPath);
+          await fs.ensureDir(path.dirname(cssFileAbsPath));
+          await fs.appendFile(cssFileAbsPath, cssBlock);
+          createdFiles.push(`✓ Appended transitions CSS to ${chalk.cyan(path.relative(cwd, cssFileAbsPath))}`);
+        } else {
+          const standaloneCssPath = path.join(componentsPath, 'theme-transitions.css');
+          const cssBlock = `/* nthemes: theme toggle transitions */\n${expoTimingFunctions}\n\n${transitions[transitionStyle].css}\n`;
+          await fs.writeFile(standaloneCssPath, cssBlock);
+          createdFiles.push(`✓ ${chalk.cyan(path.relative(cwd, standaloneCssPath))}`);
+        }
+      }
     }
 
     // Generate Provider

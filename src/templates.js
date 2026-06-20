@@ -1,3 +1,5 @@
+const { transitions, expoTimingFunctions } = require('./transitions');
+
 const themeProviderJS = `'use client';
 
 import React from 'react';
@@ -18,18 +20,6 @@ export function ThemeProvider({ children, ...props }) {
 }
 `;
 
-const ProviderJS = `'use client';
-
-import { ThemeProvider } from './theme/ThemeProvider'
-
-export default function Provider({ children }) {
-    return (
-        <ThemeProvider>
-            {children}
-        </ThemeProvider>
-    )
-}`
-
 
 const themeProviderTS = `"use client"
 
@@ -46,22 +36,24 @@ export function ThemeProvider({
       enableSystem
       disableTransitionOnChange
    {...props}>{children}</NextThemesProvider>
-}`
-
-const providerTs = `"use client";
-
-import { ThemeProvider } from "./theme/ThemeProvider"
-
-export default function Provider({ children }: { children: React.ReactNode }) {
-    return (
-        <ThemeProvider>
-            {children}
-        </ThemeProvider>
-    )
-}`
+}`;
 
 
-const themeToggleTS = `"use client"
+function getThemeToggleTS(transitionStyle) {
+  const hasTransition = !!transitionStyle && transitions[transitionStyle];
+  
+  const handleThemeToggleBody = hasTransition 
+    ? `if (!document?.startViewTransition) {
+            toggleTheme();
+            return;
+        }
+
+        document.startViewTransition(() => {
+            toggleTheme();
+        });`
+    : `toggleTheme();`;
+
+  return `"use client"
 
 import { useTheme } from "next-themes"
 import { SVGProps } from "react";
@@ -85,14 +77,7 @@ export function ModeToggle() {
         }
     }
     const handleThemeToggle = () => {
-        if (!document?.startViewTransition) {
-            toggleTheme();
-            return;
-        }
-
-        document.startViewTransition(() => {
-            toggleTheme();
-        });
+        ${handleThemeToggleBody}
     };
 
 
@@ -161,9 +146,25 @@ const Moon = (props: SVGProps<SVGSVGElement>) => (
   </svg>
 
 )
-`
+`;
+}
 
-const themeToggleJS = `"use client"
+
+function getThemeToggleJS(transitionStyle) {
+  const hasTransition = !!transitionStyle && transitions[transitionStyle];
+  
+  const handleThemeToggleBody = hasTransition 
+    ? `if (!document?.startViewTransition) {
+            toggleTheme();
+            return;
+        }
+
+        document.startViewTransition(() => {
+            toggleTheme();
+        });`
+    : `toggleTheme();`;
+
+  return `"use client"
 
 import { useTheme } from "next-themes"
 
@@ -185,14 +186,7 @@ export function ModeToggle() {
         }
     }
     const handleThemeToggle = () => {
-        if (!document?.startViewTransition) {
-            toggleTheme();
-            return;
-        }
-
-        document.startViewTransition(() => {
-            toggleTheme();
-        });
+        ${handleThemeToggleBody}
     };
 
 
@@ -261,15 +255,16 @@ const Moon = (props) => (
   </svg>
 
 )
-`
+`;
+}
 
 
 function getThemeProviderTemplate(usesTypeScript) {
   return usesTypeScript ? themeProviderTS : themeProviderJS;
 }
 
-function getThemeToggleTemplate(usesTypeScript) {
-  return usesTypeScript ? themeToggleTS : themeToggleJS;
+function getThemeToggleTemplate(usesTypeScript, transitionStyle) {
+  return usesTypeScript ? getThemeToggleTS(transitionStyle) : getThemeToggleJS(transitionStyle);
 }
 
 function getProviderTemplate(usesTypeScript, themeProviderImportPath) {

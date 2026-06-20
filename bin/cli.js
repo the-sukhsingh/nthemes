@@ -5,6 +5,7 @@ const path = require('path');
 const inquirer = require('inquirer');
 const chalk = require('chalk');
 const { generateThemeFiles } = require('../src/generator');
+const { transitions } = require('../src/transitions');
 
 function detectTypeScript(cwd) {
   const tsconfigExists = fs.existsSync(path.join(cwd, 'tsconfig.json'));
@@ -63,6 +64,23 @@ function detectLayoutFile(cwd) {
   return null;
 }
 
+function detectGlobalsCssFile(cwd) {
+  const possiblePaths = [
+    'src/app/globals.css',
+    'app/globals.css',
+    'src/styles/globals.css',
+    'styles/globals.css',
+    'src/globals.css',
+    'globals.css',
+  ];
+  for (const p of possiblePaths) {
+    if (fs.existsSync(path.join(cwd, p))) {
+      return p;
+    }
+  }
+  return null;
+}
+
 function getInstallCommand(packageManager, dependencies) {
   const depString = dependencies.join(' ');
   switch (packageManager) {
@@ -87,11 +105,15 @@ async function main() {
   const isTypeScript = detectTypeScript(cwd);
   const hasSrcDir = detectSrcDirectory(cwd);
   const packageManager = detectPackageManager(cwd);
+  const detectedGlobalsCss = detectGlobalsCssFile(cwd);
 
   if (isTypeScript) {
     console.log(chalk.gray(`🔍 Detected TypeScript project.`));
   } else {
     console.log(chalk.gray(`🔍 Detected JavaScript project.`));
+  }
+  if (detectedGlobalsCss) {
+    console.log(chalk.gray(`🔍 Detected global CSS file: ${chalk.bold(detectedGlobalsCss)}`));
   }
   console.log(chalk.gray(`📦 Detected package manager: ${chalk.bold(packageManager)}\n`));
 
@@ -129,6 +151,37 @@ async function main() {
           return true;
         },
       },
+      {
+        type: 'confirm',
+        name: 'addTransitions',
+        message: 'Add view transitions for the theme toggle?',
+        default: true,
+        when: (answers) => answers.components.includes('ThemeToggle'),
+      },
+      {
+        type: 'list',
+        name: 'transitionStyle',
+        message: 'Select transition style:',
+        choices: Object.keys(transitions).map((key) => ({
+          name: transitions[key].name,
+          value: key,
+        })),
+        default: 'circle',
+        when: (answers) => answers.components.includes('ThemeToggle') && answers.addTransitions,
+      },
+      {
+        type: 'confirm',
+        name: 'appendDetectedCss',
+        message: () => `Detected global CSS file at '${detectedGlobalsCss}'. Append transition styles to it?`,
+        default: true,
+        when: (answers) => answers.components.includes('ThemeToggle') && answers.addTransitions && !!detectedGlobalsCss,
+      },
+      {
+        type: 'input',
+        name: 'customCssPath',
+        message: 'Path to your global CSS file (leave empty to generate a standalone \'theme-transitions.css\' next to the toggle component):',
+        when: (answers) => answers.components.includes('ThemeToggle') && answers.addTransitions && (!detectedGlobalsCss || !answers.appendDetectedCss),
+      },
     ]);
 
     // Generate files
@@ -136,7 +189,23 @@ async function main() {
     
     console.log(chalk.gray('\nGenerating files...\n'));
 
-    await generateThemeFiles(componentsPath, answers.useTypeScript, answers.components);
+    const selectedTransition = answers.addTransitions ? answers.transitionStyle : null;
+    let targetCssFile = null;
+    if (answers.addTransitions) {
+      if (detectedGlobalsCss && answers.appendDetectedCss) {
+        targetCssFile = detectedGlobalsCss;
+      } else if (answers.customCssPath && answers.customCssPath.trim() !== '') {
+        targetCssFile = answers.customCssPath.trim();
+      }
+    }
+
+    await generateThemeFiles(
+      componentsPath,
+      answers.useTypeScript,
+      answers.components,
+      selectedTransition,
+      targetCssFile
+    );
     
     // Install next-themes dependency
     console.log(chalk.gray('\nInstalling dependencies...\n'));
@@ -154,8 +223,17 @@ async function main() {
 
     console.log(chalk.green.bold('\n✅ Success! Theme files created.\n'));
     console.log(chalk.yellow('📝 Next steps:\n'));
-    console.log(chalk.white(`1. Wrap your app with the ${chalk.cyan('Provider')} in ${layoutHint}.`));
-    console.log(chalk.white(`2. Use the ${chalk.cyan('ModeToggle')} component (exported from ThemeToggle) wherever you need theme switching.\n`));
+    let stepCount = 1;
+    console.log(chalk.white(`${stepCount++}. Wrap your app with the ${chalk.cyan('Provider')} in ${layoutHint}.`));
+    console.log(chalk.white(`${stepCount++}. Use the ${chalk.cyan('ModeToggle')} component (exported from ThemeToggle) wherever you need theme switching.`));
+    if (selectedTransition) {
+      if (targetCssFile) {
+        console.log(chalk.white(`${stepCount++}. Transition styles have been appended to ${chalk.cyan(targetCssFile)}.`));
+      } else {
+        console.log(chalk.white(`${stepCount++}. Import the standalone transition styles ${chalk.cyan("import './theme-transitions.css'")} inside your layout or global css file.`));
+      }
+    }
+    console.log();
 
     console.log(chalk.blue.bold('Happy Theming! 🚀\n'));
     
